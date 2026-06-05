@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tester AI Chatbot</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Markdown & Code Highlighting libs -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    /* Custom Scrollbar for modern look */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(156, 163, 175, 0.3);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(156, 163, 175, 0.5);
+    }
+    /* Simple bouncing dots animation for assistant thinking status */
+    .dot-flashing {
+      position: relative;
+      width: 8px;
+      height: 8px;
+      border-radius: 5px;
+      background-color: #a855f7;
+      color: #a855f7;
+      animation: dot-flashing 1s infinite linear alternate;
+      animation-delay: .5s;
+    }
+    .dot-flashing::before, .dot-flashing::after {
+      content: '';
+      display: inline-block;
+      position: absolute;
+      top: 0;
+    }
+    .dot-flashing::before {
+      left: -14px;
+      width: 8px;
+      height: 8px;
+      border-radius: 5px;
+      background-color: #a855f7;
+      color: #a855f7;
+      animation: dot-flashing 1s infinite linear alternate;
+      animation-delay: 0s;
+    }
+    .dot-flashing::after {
+      left: 14px;
+      width: 8px;
+      height: 8px;
+      border-radius: 5px;
+      background-color: #a855f7;
+      color: #a855f7;
+      animation: dot-flashing 1s infinite linear alternate;
+      animation-delay: 1s;
+    }
+    @keyframes dot-flashing {
+      0% { background-color: #a855f7; }
+      50%, 100% { background-color: rgba(168, 85, 247, 0.2); }
+    }
+    /* Fade In animation */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fadeIn {
+      animation: fadeIn 0.25s ease-out forwards;
+    }
+    /* Render markdown nicely */
+    .prose p { margin-bottom: 0.75rem; }
+    .prose p:last-child { margin-bottom: 0; }
+    .prose code {
+      background-color: rgba(0,0,0,0.06);
+      padding: 0.125rem 0.25rem;
+      border-radius: 0.25rem;
+      font-size: 0.875em;
+      font-family: monospace;
+    }
+    .prose pre {
+      background-color: #1e1e2e;
+      color: #cdd6f4;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      overflow-x: auto;
+      margin-top: 0.5rem;
+      margin-bottom: 0.5rem;
+      font-family: monospace;
+      font-size: 0.875rem;
+    }
+    .prose pre code {
+      background-color: transparent;
+      padding: 0;
+      color: inherit;
+    }
+  </style>
+</head>
+<body class="h-full bg-slate-900 text-slate-100 flex flex-col font-sans overflow-hidden antialiased">
+
+  <!-- Header Banner -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md px-6 py-4 flex items-center justify-between shrink-0">
+    <div class="flex items-center space-x-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
+        <i class="fa-solid fa-vial-circle-check text-white text-lg"></i>
+      </div>
+      <div>
+        <h1 class="font-bold text-lg tracking-tight flex items-center gap-2">
+          Tester <span class="bg-purple-500/20 text-purple-400 text-xs font-semibold px-2 py-0.5 rounded-full border border-purple-500/30">AI Agent</span>
+        </h1>
+        <p class="text-xs text-slate-400">Software testing, debugging & QA Analyst expert</p>
+      </div>
+    </div>
+
+    <!-- Right Side Header: Key Status & Config -->
+    <div class="flex items-center space-x-3">
+      <!-- Status Badge -->
+      <div id="key-badge" class="hidden sm:flex items-center space-x-1.5 text-xs px-2.5 py-1 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">
+        <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+        <span id="key-badge-text">No API Key Loaded</span>
+      </div>
+      <!-- API Config Trigger -->
+      <button id="btn-open-settings" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 transition duration-150 text-slate-300 hover:text-white" title="Settings">
+        <i class="fa-solid fa-key"></i>
+      </button>
+      <button id="btn-clear-chat" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 transition duration-150 text-slate-300 hover:text-red-400" title="Clear Chat History">
+        <i class="fa-solid fa-trash-can"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Grid Area -->
+  <main class="flex-1 flex overflow-hidden relative">
+
+    <!-- Primary Chat interface -->
+    <div class="flex-1 flex flex-col h-full bg-slate-950 relative">
+      
+      <!-- API Key Required Floating Overlay (Prompt user to input API Key initially) -->
+      <div id="key-overlay" class="absolute inset-0 bg-slate-950/90 z-20 flex flex-col items-center justify-center p-6 text-center transition-all duration-300">
+        <div class="max-w-md w-full bg-slate-900 border border-slate-800 p-8 rounded-2xl shadow-2xl">
+          <div class="w-14 h-14 bg-purple-500/10 text-purple-400 rounded-full flex items-center justify-center mx-auto mb-4">
+            <i class="fa-solid fa-key text-2xl"></i>
+          </div>
+          <h2 class="text-xl font-bold mb-2 text-white">Google Gemini API Key Required</h2>
+          <p class="text-sm text-slate-400 mb-6 leading-relaxed">
+            This chatbot operates on your client's browser directly using Google Gemini's API. Please enter your API Key to initialize "Tester". Your key is saved locally in your own browser cache.
+          </p>
+          
+          <div class="space-y-4">
+            <div class="relative">
+              <input type="password" id="input-api-key" placeholder="Enter Gemini API Key (AIzaSy...)" 
+                     class="w-full px-4 py-3 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm font-mono pr-12">
+              <button id="toggle-key-visibility" class="absolute right-3 top-3.5 text-slate-500 hover:text-slate-300 transition">
+                <i class="fa-solid fa-eye" id="key-eye-icon"></i>
+              </button>
+            </div>
+            
+            <button id="btn-save-key" class="w-full bg-purple-600 hover:bg-purple-700 active:bg-purple-800 transition py-3 rounded-xl font-medium text-white shadow-lg shadow-purple-600/20 text-sm flex items-center justify-center space-x-2">
+              <span>Start Tester Chatbot</span>
+              <i class="fa-solid fa-arrow-right"></i>
+            </button>
+          </div>
+
+          <div class="mt-6 pt-4 border-t border-slate-800 text-xs text-slate-500 flex justify-center items-center gap-1.5">
+            <i class="fa-solid fa-shield-halved text-emerald-500"></i>
+            <span>Your key is sent directly to Google. No third-party servers.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Messages Window Container -->
+      <div id="messages-container" class="flex-1 overflow-y-auto px-4 py-6 space-y-6 sm:px-6 md:px-8">
+        <!-- Initial Greetings from Tester -->
+        <div class="flex space-x-4 max-w-3xl mr-auto animate-fadeIn">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white shrink-0 shadow-md">
+            <i class="fa-solid fa-vial-circle-check text-xs"></i>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl px-4 py-3.5 text-slate-200 shadow-sm max-w-[85%]">
+            <p class="text-xs text-purple-400 font-semibold mb-1">Tester • System Analyst</p>
+            <div class="prose prose-sm prose-invert max-w-none text-sm leading-relaxed">
+              Hello! I am <strong>Tester</strong>, your intelligent assistant specializing in code quality assurance, testing strategies, automation frameworks, and complex debugging. 
+              <br><br>
+              How can I assist you in testing or analyzing your systems today? Pass me some code, an architectural idea, or test scenarios to run through!
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Thinking Indicator (Hidden initially) -->
+      <div id="thinking-indicator" class="hidden px-4 py-3 bg-slate-950/60 border-t border-slate-900 flex items-center space-x-4">
+        <div class="w-8 h-8 rounded-lg bg-purple-600/10 flex items-center justify-center shrink-0">
+          <i class="fa-solid fa-flask-vial text-purple-400 text-xs animate-bounce"></i>
+        </div>
+        <div class="flex items-center space-x-6 text-xs text-purple-400">
+          <span>Tester is running scenarios...</span>
+          <div class="dot-flashing"></div>
+        </div>
+      </div>
+
+      <!-- Floating notification bar / Error popup banner -->
+      <div id="msg-box" class="hidden absolute top-4 left-1/2 -translate-x-1/2 z-50 max-w-md w-full bg-red-900/90 text-red-100 border border-red-700/50 p-4 rounded-xl shadow-2xl backdrop-blur-md flex items-start space-x-3 animate-fadeIn">
+        <div class="text-red-400 mt-0.5"><i class="fa-solid fa-circle-exclamation text-lg"></i></div>
+        <div class="flex-1">
+          <h4 class="font-bold text-xs uppercase tracking-wider text-red-200">Execution Error</h4>
+          <p id="msg-box-text" class="text-xs text-red-300 mt-1"></p>
+        </div>
+        <button id="btn-close-msg" class="text-red-400 hover:text-white transition"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <!-- Prompt Input Panel -->
+      <div class="p-4 bg-slate-900/60 border-t border-slate-800 shrink-0">
+        <form id="chat-form" class="max-w-4xl mx-auto flex gap-2">
+          <div class="relative flex-1">
+            <textarea id="input-message" rows="1" placeholder="Type your prompt for Tester..." 
+                      class="w-full bg-slate-950 text-slate-100 placeholder-slate-500 rounded-xl border border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent px-4 py-3.5 pr-12 text-sm resize-none"
+                      style="max-height: 150px; min-height: 48px;"></textarea>
+            <div class="absolute right-3 bottom-3 flex items-center space-x-1.5">
+              <span id="char-counter" class="text-[10px] text-slate-600 font-mono hidden">0</span>
+            </div>
+          </div>
+          <button type="submit" id="btn-submit" class="bg-purple-600 hover:bg-purple-700 active:bg-purple-800 transition text-white w-12 h-12 rounded-xl flex items-center justify-center shadow-md shadow-purple-600/10 shrink-0">
+            <i class="fa-solid fa-paper-plane text-sm"></i>
+          </button>
+        </form>
+        <div class="flex justify-between items-center max-w-4xl mx-auto mt-2 px-1 text-[11px] text-slate-500">
+          <div>Powered by Google Gemini 2.5 Flash</div>
+          <button id="btn-edit-key" class="hover:text-purple-400 transition flex items-center gap-1">
+            <i class="fa-solid fa-pen-to-square"></i> Change API Key
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- API Key Config Modals -->
+  <div id="settings-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-fadeIn">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-gears text-purple-500"></i> Settings Configuration
+        </h3>
+        <button id="btn-close-settings" class="text-slate-400 hover:text-white transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Your Gemini API Key</label>
+          <div class="relative">
+            <input type="password" id="modal-api-key" class="w-full px-4 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-transparent font-mono text-sm">
+          </div>
+          <p class="text-[11px] text-slate-500 mt-1">Acquire an API Key free of charge via Google AI Studio.</p>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">System Instructions (Personality)</label>
+          <textarea id="modal-system-prompt" rows="5" class="w-full px-4 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-transparent text-xs leading-relaxed font-sans">You are "Tester", a specialized AI companion built for software testing, quality assurance, code diagnostics, performance optimization, and bug discovery. Your personality is hyper-analytical, concise, structured, and helpful. You analyze code with standard procedures, propose mock tests, write unit tests (Jest, PyTest, JUnit, etc.), point out edge cases, and ensure strict formatting guidelines in all answers.</textarea>
+        </div>
+      </div>
+      <div class="mt-6 flex justify-end space-x-3">
+        <button id="btn-cancel-settings" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 transition">Cancel</button>
+        <button id="btn-save-settings" class="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 transition">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vanilla Javascript Interface logic -->
+  <script>
+    // Configuration constants and application state
+    const API_MODEL = "gemini-2.5-flash"; // Standard stable Gemini 2.5 Flash model
+    let apiKey = localStorage.getItem("GEMINI_API_KEY") || "";
+    let systemInstruction = localStorage.getItem("GEMINI_SYSTEM_PROMPT") || `You are "Tester", a specialized AI companion built for software testing, quality assurance, code diagnostics, performance optimization, and bug discovery. Your personality is hyper-analytical, concise, structured, and helpful. You analyze code with standard procedures, propose mock tests, write unit tests (Jest, PyTest, JUnit, etc.), point out edge cases, and ensure strict formatting guidelines in all answers.`;
+    
+    // Conversation Memory array
+    let chatHistory = [];
+
+    // DOM Selection Elements
+    const keyOverlay = document.getElementById("key-overlay");
+    const inputApiKey = document.getElementById("input-api-key");
+    const toggleKeyVisibility = document.getElementById("toggle-key-visibility");
+    const keyEyeIcon = document.getElementById("key-eye-icon");
+    const btnSaveKey = document.getElementById("btn-save-key");
+    
+    const messagesContainer = document.getElementById("messages-container");
+    const thinkingIndicator = document.getElementById("thinking-indicator");
+    const chatForm = document.getElementById("chat-form");
+    const inputMessage = document.getElementById("input-message");
+    const btnSubmit = document.getElementById("btn-submit");
+    const charCounter = document.getElementById("char-counter");
+    
+    const keyBadge = document.getElementById("key-badge");
+    const keyBadgeText = document.getElementById("key-badge-text");
+    const btnOpenSettings = document.getElementById("btn-open-settings");
+    const btnEditKey = document.getElementById("btn-edit-key");
+    const btnClearChat = document.getElementById("btn-clear-chat");
+    
+    const settingsModal = document.getElementById("settings-modal");
+    const modalApiKey = document.getElementById("modal-api-key");
+    const modalSystemPrompt = document.getElementById("modal-system-prompt");
+    const btnCloseSettings = document.getElementById("btn-close-settings");
+    const btnCancelSettings = document.getElementById("btn-cancel-settings");
+    const btnSaveSettings = document.getElementById("btn-save-settings");
+    
+    const msgBox = document.getElementById("msg-box");
+    const msgBoxText = document.getElementById("msg-box-text");
+    const btnCloseMsg = document.getElementById("btn-close-msg");
+
+    // Initialize application interface
+    function initialize() {
+      // Set values in elements
+      modalSystemPrompt.value = systemInstruction;
+      if (apiKey) {
+        keyOverlay.classList.add("hidden");
+        updateApiKeyStatus(true);
+        loadChatFromLocal();
+      } else {
+        keyOverlay.classList.remove("hidden");
+        updateApiKeyStatus(false);
+      }
+    }
+
+    // Toggle API Key visibility in initial input screen
+    toggleKeyVisibility.addEventListener("click", () => {
+      if (inputApiKey.type === "password") {
+        inputApiKey.type = "text";
+        keyEyeIcon.classList.replace("fa-eye", "fa-eye-slash");
+      } else {
+        inputApiKey.type = "password";
+        keyEyeIcon.classList.replace("fa-eye-slash", "fa-eye");
+      }
+    });
+
+    // Save initial key setup
+    btnSaveKey.addEventListener("click", () => {
+      const enteredKey = inputApiKey.value.trim();
+      if (!enteredKey) {
+        showWarning("Please insert a valid Google Gemini API Key.");
+        return;
+      }
+      apiKey = enteredKey;
+      localStorage.setItem("GEMINI_API_KEY", apiKey);
+      keyOverlay.classList.add("hidden");
+      updateApiKeyStatus(true);
+    });
+
+    // Update API Key Loaded Status UI
+    function updateApiKeyStatus(loaded) {
+      if (loaded) {
+        keyBadge.classList.remove("hidden");
+        keyBadge.classList.replace("bg-red-500/10", "bg-emerald-500/10");
+        keyBadge.classList.replace("text-red-400", "text-emerald-400");
+        keyBadge.classList.replace("border-red-500/20", "border-emerald-500/20");
+        keyBadge.querySelector("span").classList.replace("bg-red-500", "bg-emerald-500");
+        keyBadgeText.textContent = "API Key Active";
+        modalApiKey.value = apiKey;
+      } else {
+        keyBadge.classList.remove("hidden");
+        keyBadge.classList.replace("bg-emerald-500/10", "bg-red-500/10");
+        keyBadge.classList.replace("text-emerald-400", "text-red-400");
+        keyBadge.classList.replace("border-emerald-500/20", "border-red-500/20");
+        keyBadge.querySelector("span").classList.replace("bg-emerald-500", "bg-red-500");
+        keyBadgeText.textContent = "API Key Missing";
+      }
+    }
+
+    // Warnings & Custom Toast Message Box
+    function showWarning(text) {
+      msgBoxText.textContent = text;
+      msgBox.classList.remove("hidden");
+      setTimeout(() => {
+        msgBox.classList.add("hidden");
+      }, 7000);
+    }
+    btnCloseMsg.addEventListener("click", () => msgBox.classList.add("hidden"));
+
+    // Settings Modal handlers
+    btnOpenSettings.addEventListener("click", () => {
+      modalApiKey.value = apiKey;
+      modalSystemPrompt.value = systemInstruction;
+      settingsModal.classList.remove("hidden");
+    });
+    btnEditKey.addEventListener("click", () => {
+      keyOverlay.classList.remove("hidden");
+      inputApiKey.focus();
+    });
+    btnCloseSettings.addEventListener("click", () => settingsModal.classList.add("hidden"));
+    btnCancelSettings.addEventListener("click", () => settingsModal.classList.add("hidden"));
+    btnSaveSettings.addEventListener("click", () => {
+      const cleanKey = modalApiKey.value.trim();
+      if (!cleanKey) {
+        showWarning("API Key is required to connect to Gemini.");
+        return;
+      }
+      apiKey = cleanKey;
+      systemInstruction = modalSystemPrompt.value.trim();
+      localStorage.setItem("GEMINI_API_KEY", apiKey);
+      localStorage.setItem("GEMINI_SYSTEM_PROMPT", systemInstruction);
+      updateApiKeyStatus(true);
+      settingsModal.classList.add("hidden");
+    });
+
+    // Clear conversation flow
+    btnClearChat.addEventListener("click", () => {
+      if (confirm("Are you sure you want to clear your conversation history?")) {
+        chatHistory = [];
+        localStorage.removeItem("TESTER_CHAT_HISTORY");
+        // Remove all rendered messages except initial greetings
+        while (messagesContainer.children.length > 1) {
+          messagesContainer.removeChild(messagesContainer.lastChild);
+        }
+      }
+    });
+
+    // Smart auto-sizing input field & char counter
+    inputMessage.addEventListener("input", () => {
+      inputMessage.style.height = 'auto';
+      inputMessage.style.height = inputMessage.scrollHeight + 'px';
+      
+      const charCount = inputMessage.value.length;
+      if (charCount > 100) {
+        charCounter.classList.remove("hidden");
+        charCounter.textContent = charCount;
+      } else {
+        charCounter.classList.add("hidden");
+      }
+    });
+
+    // Form validation and triggers
+    chatForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const userMessage = inputMessage.value.trim();
+      if (!userMessage) return;
+
+      if (!apiKey) {
+        showWarning("Please configure your Gemini API Key in Settings first.");
+        return;
+      }
+
+      // Append User message to container & state
+      appendUserMessage(userMessage);
+      chatHistory.push({ role: "user", parts: [{ text: userMessage }] });
+      saveChatToLocal();
+
+      // Reset textarea form and size
+      inputMessage.value = "";
+      inputMessage.style.height = '48px';
+      charCounter.classList.add("hidden");
+
+      // Trigger Gemini call
+      askGemini();
+    });
+
+    // Append Message nodes to the viewport
+    function appendUserMessage(text) {
+      const msgDiv = document.createElement("div");
+      msgDiv.className = "flex space-x-4 max-w-3xl ml-auto justify-end animate-fadeIn";
+      
+      const contentSafeHtml = marked.parse(text);
+
+      msgDiv.innerHTML = `
+        <div class="bg-purple-600 text-white rounded-2xl px-4 py-3.5 shadow-sm max-w-[85%]">
+          <p class="text-[10px] text-purple-200 font-semibold mb-1 text-right">You</p>
+          <div class="prose prose-sm prose-invert max-w-none text-sm leading-relaxed text-slate-50">
+            ${contentSafeHtml}
+          </div>
+        </div>
+        <div class="w-9 h-9 rounded-xl bg-slate-800 flex items-center justify-center text-slate-300 shrink-0 shadow-md">
+          <i class="fa-solid fa-user text-xs"></i>
+        </div>
+      `;
+      messagesContainer.appendChild(msgDiv);
+      scrollToBottom();
+    }
+
+    function appendAssistantMessage(text) {
+      const msgDiv = document.createElement("div");
+      msgDiv.className = "flex space-x-4 max-w-3xl mr-auto animate-fadeIn";
+      
+      const contentSafeHtml = marked.parse(text);
+
+      msgDiv.innerHTML = `
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white shrink-0 shadow-md">
+          <i class="fa-solid fa-vial-circle-check text-xs"></i>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl px-4 py-3.5 text-slate-200 shadow-sm max-w-[85%]">
+          <p class="text-xs text-purple-400 font-semibold mb-1">Tester • QA Specialist</p>
+          <div class="prose prose-sm prose-invert max-w-none text-sm leading-relaxed">
+            ${contentSafeHtml}
+          </div>
+        </div>
+      `;
+      messagesContainer.appendChild(msgDiv);
+      scrollToBottom();
+    }
+
+    function scrollToBottom() {
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    // Storage utils
+    function saveChatToLocal() {
+      localStorage.setItem("TESTER_CHAT_HISTORY", JSON.stringify(chatHistory));
+    }
+
+    function loadChatFromLocal() {
+      const loaded = localStorage.getItem("TESTER_CHAT_HISTORY");
+      if (loaded) {
+        chatHistory = JSON.parse(loaded);
+        chatHistory.forEach(msg => {
+          if (msg.role === "user") {
+            appendUserMessage(msg.parts[0].text);
+          } else if (msg.role === "model") {
+            appendAssistantMessage(msg.parts[0].text);
+          }
+        });
+      }
+    }
+
+    // Call Google Gemini API
+    async function askGemini() {
+      showLoader(true);
+
+      // System prompt and context integration
+      const payload = {
+        contents: chatHistory,
+        systemInstruction: {
+          parts: [{ text: systemInstruction }]
+        }
+      };
+
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${API_MODEL}:generateContent?key=${apiKey}`;
+
+      // Call Gemini API with Exponential Backoff retry strategy (Up to 5 attempts)
+      let delay = 1000;
+      let responseData = null;
+      let success = false;
+
+      for (let attempt = 1; attempt <= 5; attempt++) {
+        try {
+          const response = await fetch(url, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify(payload)
+          });
+
+          if (response.ok) {
+            responseData = await response.json();
+            success = true;
+            break;
+          } else {
+            const errBody = await response.json().catch(() => ({}));
+            const errMsg = errBody?.error?.message || `HTTP ${response.status}`;
+            
+            // Check for quota rate limit issues (429) or temporary server errors
+            if (response.status === 429 || response.status >= 500) {
+              if (attempt === 5) throw new Error(errMsg);
+              await new Promise(r => setTimeout(r, delay));
+              delay *= 2; // Double delay for backoff
+              continue;
+            } else {
+              throw new Error(errMsg);
+            }
+          }
+        } catch (err) {
+          if (attempt === 5) {
+            showLoader(false);
+            showWarning(`Failed to query Gemini API: ${err.message}`);
+            return;
+          }
+          await new Promise(r => setTimeout(r, delay));
+          delay *= 2;
+        }
+      }
+
+      showLoader(false);
+
+      if (success && responseData) {
+        const text = responseData.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) {
+          appendAssistantMessage(text);
+          chatHistory.push({ role: "model", parts: [{ text: text }] });
+          saveChatToLocal();
+        } else {
+          showWarning("We received an empty structure from Gemini's endpoint.");
+        }
+      }
+    }
+
+    function showLoader(visible) {
+      if (visible) {
+        thinkingIndicator.classList.remove("hidden");
+        btnSubmit.disabled = true;
+        btnSubmit.classList.replace("bg-purple-600", "bg-slate-800");
+      } else {
+        thinkingIndicator.classList.add("hidden");
+        btnSubmit.disabled = false;
+        btnSubmit.classList.replace("bg-slate-800", "bg-purple-600");
+      }
+      scrollToBottom();
+    }
+
+    // Trigger initializer logic
+    window.onload = initialize;
+  </script>
+</body>
+</html>
